@@ -7,6 +7,7 @@ import blobfile as bf
 from mpi4py import MPI
 import numpy as np
 from torch.utils.data import DataLoader, Dataset
+import torch.utils.data
 from torchvision.datasets import LSUN
 
 
@@ -123,6 +124,47 @@ def load_npy(
         shard=MPI.COMM_WORLD.Get_rank(),
         num_shards=MPI.COMM_WORLD.Get_size(),
     )
+    if deterministic:
+        loader = DataLoader(
+            dataset, batch_size=batch_size, shuffle=False, num_workers=1, drop_last=True
+        )
+    else:
+        loader = DataLoader(
+            dataset, batch_size=batch_size, shuffle=True, num_workers=1, drop_last=True
+        )
+    while True:
+        yield from loader
+
+
+def load_fastmri(
+    *,
+    data_dir,
+    batch_size,
+    image_size=256,
+    is_complex=True,
+    h5_key='reconstruction_rss',
+    deterministic=False,
+):
+    """Load FastMRI knee single-coil .h5 files."""
+    # Import here to avoid dependency issues if not used
+    from datasets.MRI_datasets_knee_kspace import FastMRIH5SliceDataset
+    
+    dataset = FastMRIH5SliceDataset(
+        root=data_dir,
+        is_complex=is_complex,
+        key=h5_key,
+        target_shape=(image_size, image_size),
+        sort=not deterministic  # Deterministic means no shuffling
+    )
+    
+    # Apply MPI sharding
+    shard = MPI.COMM_WORLD.Get_rank()
+    num_shards = MPI.COMM_WORLD.Get_size()
+    
+    # Create indices for this shard
+    indices = list(range(len(dataset)))[shard::num_shards]
+    dataset = torch.utils.data.Subset(dataset, indices)
+    
     if deterministic:
         loader = DataLoader(
             dataset, batch_size=batch_size, shuffle=False, num_workers=1, drop_last=True

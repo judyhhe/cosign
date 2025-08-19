@@ -1,0 +1,21 @@
+conditioning:
+  method: ddnm
+  params:
+
+data:
+  name: fastmri_knee
+  root: datasets/fastmri_knee
+  image_size: 256
+  h5_key: reconstruction_rss
+  is_complex: true
+
+measurement:
+  operator:
+    name: mri
+    acceleration: 8
+    sigma_frac: 0.3
+    max_cg_iter: 5
+
+  noise: 
+    name: gaussian
+    sigma: 0.02
